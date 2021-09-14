@@ -11,6 +11,7 @@ class ObjectTracker:
             self.result = None
             self.lastSeen = None
             self.lostCount = 0
+            self.metadata = None
 
         def update(self, img):
             if self.tracker:
@@ -29,18 +30,19 @@ class ObjectTracker:
 
 
     """ Adds a bounding box to track, in rxywh format """
-    def addObject(self, bbox):
+    def addObject(self, bbox, metadata):
         if self._image is None:
             raise Exception("Set image first")
 
-        print(f"addObject @ {bbox}")
 
         newTracker = ObjectTracker.Tracker()
         newTracker.tracker = ObjectTracker.createTrackerByType( self._trackerType )
         newTracker.lastSeen = bbox
         newTracker.tracker.init( self._image, rxywh2x1y1wh(bbox, self._image.shape) )
+        newTracker.metadata = metadata
         self._lastTrackerKey += 1
         self._trackers[self._lastTrackerKey] = newTracker
+        print(f"addObject @ {self._lastTrackerKey} {bbox}")
         return self._lastTrackerKey
 
 
@@ -51,7 +53,7 @@ class ObjectTracker:
 
 
     def setImage(self, image):
-        self._image = image
+        self._image = image.copy()
 
 
 
@@ -70,10 +72,31 @@ class ObjectTracker:
         return res
 
 
-
     """ Update the tracker with YOLO detections """
-    def updateDetections(self, detections, detectionClasses):
+    def updateDetections(self, detections, detectionMetadata):
+        # Try to match detections with currently tracked objects
+        updatedTrackedObjs, matchedKeys, lostObjIds = self.matchDetections( detections, detectionMetadata )
 
+        # Update any already-tracked objects
+        for key,tracker in updatedTrackedObjs.items():
+            self._trackers[key].tracker = tracker
+
+        # Track any new objects
+        for idx,key in enumerate(matchedKeys):
+            if key is None:
+                self.addObject( detections[idx], detectionMetadata[idx])
+            else:
+                pass # Already tracked object
+
+        # Handle lost objects:
+        for id in lostObjIds:
+            print(f"Lost id: {id}")
+            self._trackers[id].lostCount += 1
+        pass
+
+
+    # TODO: Inconsistent use of detectedClasses/metadata
+    def matchDetections( self, detectedObjects, detectedClasses):
         # Try to match up new detections with tracked objects
 
         # First gather all of the last-seen positions for tracked objects
@@ -84,41 +107,29 @@ class ObjectTracker:
             trackedObjectCoords.append(value.lastSeen)
 
         # Try to match detections with currently tracked objects
-        updatedTrackedObjs, newBboxes, lostObjIds = self.matchDetections(
-                                    np.array( detections ),
+        updatedTrackedObjs, matchedKeys, lostObjIds = self._matchDetections(
+                                    np.array( detectedObjects ),
                                     np.array( trackedObjectCoords ),
                                     trackedObjectIds )
 
-        # Update any already-tracked objects
-        for key,tracker in updatedTrackedObjs.items():
-            self._trackers[key].tracker = tracker
-
-        # Track any new objects
-        for bbox in newBboxes:
-            self.addObject( bbox )
-
-        # Handle lost objects:
-        for id in lostObjIds:
-            print(f"Lost id: {id}")
-            self._trackers[id].lostCount += 1
-        pass
+        return (updatedTrackedObjs, matchedKeys, lostObjIds )
 
 
-
-    # Returns updatedTrackedObjs, newBboxes, lostIds
-    def matchDetections( self, detectedObjects, trackedObjects, trackedIds ):
+    # Returns updatedTrackedObjs, matchedKeys, lostIds
+    # matchedKeys indexes correspond to detectedObject indexes
+    def _matchDetections( self, detectedObjects, trackedObjects, trackedIds ):
         updatedTrackedObjs = {}
+        matchedIds = [None]*len(detectedObjects)
 
         # If there are no currently tracked objects then all objects are new
         if len(trackedObjects) == 0:
-            return ( updatedTrackedObjs, detectedObjects, [] )
+            return ( updatedTrackedObjs, matchedIds, [] )
 
         # No detections, then all objects are lost
         if len(detectedObjects) == 0:
-            return ( updatedTrackedObjs, [], trackedIds )
+            return ( updatedTrackedObjs, matchedIds, trackedIds )
 
 
-        newObjectBboxes = []
         lostObjectIds = []
 
         # Adapted from
@@ -134,6 +145,7 @@ class ObjectTracker:
                 continue
 
             objId = trackedIds[row]
+            matchedIds[col] = objId
             bbox = rxywh2x1y1wh(detectedObjects[col], self._image.shape)
             # Create a new tracker for this detection, return it with the same id
             newTracker = ObjectTracker.createTrackerByType( self._trackerType )
@@ -153,13 +165,8 @@ class ObjectTracker:
             for row in unusedRows:
                 objId = trackedIds[row]
                 lostObjectIds.append( objId )
-        else:
-            #Otherwise we gained objects
-            for col in unusedCols:
-                newObjectBboxes.append( detectedObjects[col] )
 
-
-        return ( updatedTrackedObjs, newObjectBboxes, lostObjectIds )
+        return ( updatedTrackedObjs, matchedIds, lostObjectIds )
 
 
 

@@ -3,9 +3,9 @@ import torch
 import cv2
 import numpy as np
 import os
-# requires 'yolov5' to be in a folder that is in path, https://github.com/ultralytics/yolov5.git
-from yolov5.models.experimental import attempt_load
-from yolov5.utils.general import non_max_suppression
+# requires 'yolov5' to be in in path, https://github.com/ultralytics/yolov5.git
+from models.experimental import attempt_load
+from utils.general import non_max_suppression
 
 class YoloInference:
     def __init__(self, weights):

@@ -5,7 +5,7 @@ import numpy as np
 import os
 # requires 'yolov5' to be in in path, https://github.com/ultralytics/yolov5.git
 from models.experimental import attempt_load
-from utils.general import non_max_suppression
+from utils.general import non_max_suppression, scale_coords
 
 class YoloInference:
     def __init__(self, weights):
@@ -14,8 +14,8 @@ class YoloInference:
         self._yolo.eval()
 
 
-    def runInference(self, img):
-        yoloImg, ratio, (width,height) = letterbox( img, img.shape[1] )
+    def runInference(self, img, conf_thresh = 0.25):
+        yoloImg, ratio, (width,height) = letterbox( img )
 
         yoloImg = yoloImg[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB and HWC to CHW
         yoloImg = np.ascontiguousarray(yoloImg)
@@ -26,27 +26,21 @@ class YoloInference:
             yoloImg = yoloImg.unsqueeze(0)
         _,_,yoloImgH,yoloImgW = yoloImg.shape
 
-        conf_thres = 0.4
         iou_thres=0.45  # NMS IOU threshold
         classes = None
         agnostic_nms = False
         max_det = 5000
         preds = self._yolo(yoloImg)[0]
-        preds = non_max_suppression( preds, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+        nms_preds = non_max_suppression( preds, conf_thresh, iou_thres, classes, agnostic_nms, max_det=max_det)
 
         results = []
-        for pred in preds:
-            for obj in pred:
-                x1,y1,x2,y2,conf,objclass = obj
-                x1 -= width
-                x2 -= width
-                y1 -= height
-                y2 -= height
-                pX = ( ( x1 + x2 ) / 2 ) / yoloImgW
-                pY = ( ( y1 + y2 ) / 2 ) / yoloImgH
-                pW = ( abs(x2-x1)/yoloImgW )
-                pH = ( abs(y2-y1)/yoloImgH )
-                results.append( ( ( pX, pY ), (pW, pH ), conf, objclass ) )
+        for det in nms_preds:
+            # Rescale box coords to img size
+            det[:,:4] = scale_coords( yoloImg.shape[2:], det[:,:4], img.shape).round()
+            for x1,y1,x2,y2, conf, objclass in reversed(det):
+                w,h = int(x2-x1), int(y2-y1)
+                x1,y1 = int(x1), int(y1)
+                results.append( ((x1,y1), (w,h), int(conf), int(objclass)))
         return results
 
 

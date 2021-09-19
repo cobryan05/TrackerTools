@@ -11,6 +11,12 @@ class BBox:
             return True
         return sum(abs(self.bbox - other.bbox)) < BBox.EPSILON
 
+    def __repr__(self):
+        return f"TrackerTools.BBox: {self.bbox}"
+
+    def copy(self):
+        return BBox(self.bbox)
+
     @staticmethod
     def fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY) -> BBox:
         return BBox( (x1/imgX, y1/imgY, (x2-x1)/imgX, (y2-y1)/imgY) )

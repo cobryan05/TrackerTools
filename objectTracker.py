@@ -4,12 +4,14 @@ from scipy.spatial import distance
 from collections import OrderedDict
 import numpy as np
 
+from . bbox import BBox
+
 class ObjectTracker:
     class Tracker:
         def __init__(self):
-            self.tracker = None
+            self.tracker : cv2.Tracker = None
             self.result = None
-            self.lastSeen = None
+            self.lastSeen : BBox = None
             self.lostCount = 0
             self.metadata = None
 
@@ -20,25 +22,26 @@ class ObjectTracker:
                 return None
 
     def __init__(self, trackerType:str = "KCF" ):
-        self._trackers = OrderedDict()
+        self._trackers : OrderedDict[int, ObjectTracker.Tracker] = OrderedDict()
         self._trackerType = trackerType
         self._lastTrackerKey = 0
-        self._image = None
+        self._image : np.ndarray = None
         self._distThreshold = 0.1
         self._missingFrames = 5
 
 
 
     """ Adds a bounding box to track, in rxywh format """
-    def addObject(self, bbox, metadata):
+    def addObject(self, bbox: BBox, metadata = None):
         if self._image is None:
             raise Exception("Set image first")
 
 
         newTracker = ObjectTracker.Tracker()
         newTracker.tracker = ObjectTracker.createTrackerByType( self._trackerType )
-        newTracker.lastSeen = bbox
-        newTracker.tracker.init( self._image, rxywh2x1y1wh(bbox, self._image.shape) )
+        newTracker.lastSeen = bbox.copy()
+        imgY, imgX = self._image.shape[:2]
+        newTracker.tracker.init( self._image, bbox.asX1Y1WH( imgX, imgY ) )
         newTracker.metadata = metadata
         self._lastTrackerKey += 1
         self._trackers[self._lastTrackerKey] = newTracker
@@ -52,19 +55,19 @@ class ObjectTracker:
 
 
 
-    def setImage(self, image):
+    def setImage(self, image: np.ndarray):
         self._image = image.copy()
 
 
 
-    def update(self):
+    def update(self) -> dict[int, BBox]:
         res = {}
         for key,tracker in self._trackers.items():
             result = tracker.update( self._image )
             success,bbox = result
             if success:
-                result = x1y1wh2rxywh( bbox, self._image.shape )
-                tracker.lastSeen = result
+                imgY, imgX = self._image.shape[:2]
+                tracker.lastSeen = BBox.fromX1Y1WH( *bbox, imgX, imgY )
             else:
                 result = None
             res[key] = result
@@ -73,7 +76,7 @@ class ObjectTracker:
 
 
     """ Update the tracker with YOLO detections """
-    def updateDetections(self, detections, detectionMetadata):
+    def updateDetections(self, detections: list[BBox], detectionMetadata):
         # Try to match detections with currently tracked objects
         updatedTrackedObjs, matchedKeys, lostObjIds = self.matchDetections( detections, detectionMetadata )
 
@@ -117,7 +120,7 @@ class ObjectTracker:
 
     # Returns updatedTrackedObjs, matchedKeys, lostIds
     # matchedKeys indexes correspond to detectedObject indexes
-    def _matchDetections( self, detectedObjects, trackedObjects, trackedIds ):
+    def _matchDetections( self, detectedObjects : list[BBox], trackedObjects : list[BBox], trackedIds : list[int] ):
         updatedTrackedObjs = {}
         matchedIds = [None]*len(detectedObjects)
 
@@ -132,24 +135,27 @@ class ObjectTracker:
 
         lostObjectIds = []
 
+        detectedCoords = [ obj.bbox for obj in detectedObjects]
+        trackedCoords = [ obj.bbox for obj in trackedObjects]
         # Adapted from
         # https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
-        dist = distance.cdist( trackedObjects, detectedObjects )
+        dist = distance.cdist( trackedCoords, detectedCoords )
 
         rows = dist.min(axis=1).argsort()
         cols = dist.argmin(axis=1)[rows]
         usedRows = set()
         usedCols = set()
+        imgY, imgX = self._image.shape[:2]
         for (row, col) in zip(rows, cols):
             if row in usedRows or col in usedCols:
                 continue
 
             objId = trackedIds[row]
             matchedIds[col] = objId
-            bbox = rxywh2x1y1wh(detectedObjects[col], self._image.shape)
+            bbox = detectedObjects[col]
             # Create a new tracker for this detection, return it with the same id
             newTracker = ObjectTracker.createTrackerByType( self._trackerType )
-            newTracker.init( self._image, bbox )
+            newTracker.init( self._image, bbox.asX1Y1WH(imgX, imgY))
             updatedTrackedObjs[objId] = newTracker
 
             usedRows.add(row)
@@ -171,7 +177,7 @@ class ObjectTracker:
 
 
     @staticmethod
-    def createTrackerByType( trackerType:str ):
+    def createTrackerByType( trackerType:str ) -> cv2.Tracker:
         trackerType = trackerType.upper()
         if trackerType == 'BOOSTING':
             tracker = cv2.TrackerBoosting_create()

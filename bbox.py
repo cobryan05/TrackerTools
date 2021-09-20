@@ -4,7 +4,15 @@ import numpy as np
 class BBox:
     EPSILON=0.01
     def __init__(self, bbox):
-        self.bbox = np.array(bbox, dtype=np.float) # Relative, x1y1, w,h
+        # Ensure positive w,h
+        x1, y1, w, h = bbox
+        if w < 0:
+            x1 += w
+            w = -w
+        if h < 0:
+            y1 += h
+            h = -h
+        self.bbox = np.array( (x1, y1, w, h ), dtype=np.float) # Relative, x1y1, w,h
 
     def __eq__(self, other):
         return self.similar(other)

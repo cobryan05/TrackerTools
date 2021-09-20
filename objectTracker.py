@@ -10,7 +10,6 @@ class ObjectTracker:
     class Tracker:
         def __init__(self):
             self.tracker : cv2.Tracker = None
-            self.result = None
             self.lastSeen : BBox = None
             self.lostCount = 0
             self.metadata = None
@@ -64,14 +63,14 @@ class ObjectTracker:
         res = {}
         for key,tracker in self._trackers.items():
             result = tracker.update( self._image )
-            success,bbox = result
+            success,bbox_coords = result
             if success:
                 imgY, imgX = self._image.shape[:2]
-                tracker.lastSeen = BBox.fromX1Y1WH( *bbox, imgX, imgY )
+                bbox = BBox.fromX1Y1WH( *bbox_coords, imgX, imgY )
+                tracker.lastSeen = bbox
             else:
-                result = None
-            res[key] = result
-            tracker.result = result
+                bbox = None
+            res[key] = bbox
         return res
 
 

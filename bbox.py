@@ -7,15 +7,18 @@ class BBox:
         self.bbox = np.array(bbox, dtype=np.float) # Relative, x1y1, w,h
 
     def __eq__(self, other):
-        if self.bbox is other.bbox:
-            return True
-        return sum(abs(self.bbox - other.bbox)) < BBox.EPSILON
+        return self.similar(other)
 
     def __repr__(self):
         return f"TrackerTools.BBox: {self.bbox}"
 
     def copy(self):
         return BBox(self.bbox)
+
+    def similar(self, other, epsilon=EPSILON):
+        if self.bbox is other.bbox:
+            return True
+        return sum(abs(self.bbox - other.bbox)) < epsilon
 
     @staticmethod
     def fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY) -> BBox:

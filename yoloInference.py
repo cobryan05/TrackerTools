@@ -3,19 +3,40 @@ import torch
 import cv2
 import numpy as np
 import os
+
 # requires 'yolov5' to be in in path, https://github.com/ultralytics/yolov5.git
 from models.experimental import attempt_load
 from utils.general import non_max_suppression, scale_coords
 
+from .bbox import BBox
+
 
 class YoloInference:
-    def __init__(self, weights):
+    def __init__(self, weights: str, imgSize: int = 640, labels: list[str] = None):
+        ''' Constructor for YoloInference
+
+        Parameters:
+        weights (str): Path to weights file
+        imgSize (int): Resolution model was trained on
+        labels (list[str]): class labels, can be None
+        '''
         self._device = torch.device('cpu')
+        self._imgSize = imgSize
+        self._labels = labels
         self._yolo = attempt_load(weights, map_location=self._device)
         self._yolo.eval()
 
-    def runInference(self, img, conf_thresh=0.25):
-        yoloImg, ratio, (width, height) = letterbox(img)
+    def runInference(self, img: np.ndarray, conf_thresh: float = 0.25):
+        ''' Runs inference on an image
+
+        Parameters:
+        img (np.ndarray): image to run inference on
+        conf_thresh (float): minimum confidence result to return
+
+        Returns:
+        list[( bbox (BBox), conf (float), class (int), label (str) )] '''
+
+        yoloImg, ratio, (xPad, yPad) = letterbox(img, self._imgSize)
 
         yoloImg = yoloImg[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB and HWC to CHW
         yoloImg = np.ascontiguousarray(yoloImg)
@@ -38,9 +59,10 @@ class YoloInference:
             # Rescale box coords to img size
             det[:, :4] = scale_coords(yoloImg.shape[2:], det[:, :4], img.shape).round()
             for x1, y1, x2, y2, conf, objclass in reversed(det):
-                w, h = int(x2-x1), int(y2-y1)
-                x1, y1 = int(x1), int(y1)
-                results.append(((x1, y1), (w, h), int(conf), int(objclass)))
+                bbox = BBox.fromX1Y1X2Y2(x1, y1, x2, y2, yoloImgW, yoloImgH)
+                objclass = int(objclass)
+                label = self._labels[objclass] if objclass < len(self._labels) else ""
+                results.append((bbox, float(conf), objclass, label))
         return results
 
 

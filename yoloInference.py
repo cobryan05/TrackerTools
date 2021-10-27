@@ -26,7 +26,12 @@ class YoloInference:
         self._yolo = attempt_load(weights, map_location=self._device)
         self._yolo.eval()
 
-    def runInference(self, img: np.ndarray, conf_thresh: float = 0.25):
+    def getLabel(self, objClass):
+        if self._labels and objClass < len(self._labels):
+            return self._labels[objClass]
+        return ""
+
+    def runInference(self, img: np.ndarray, conf_thresh: float = 0.25) -> list[(BBox, float, int, str)]:
         ''' Runs inference on an image
 
         Parameters:

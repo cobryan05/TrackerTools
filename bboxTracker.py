@@ -1,6 +1,7 @@
 ''' Assigns IDs to bounding boxes and attempts to match them between updates'''
 import copy
 from collections import OrderedDict
+from collections.abc import Callable
 from scipy.spatial import distance
 
 from . bbox import BBox
@@ -9,10 +10,10 @@ from . bbox import BBox
 class BBoxTracker:
 
     class Tracker:
-        def __init__(self, bbox: BBox = None, key: int = None, metadata: object = None):
+        def __init__(self, bbox: BBox = None, key: int = None, metadata: dict = None):
             self.bbox: BBox = bbox
             self.key: int = key
-            self.metadata: object = metadata
+            self.metadata: dict = metadata
 
     def __init__(self):
         self._trackedObjs: OrderedDict[int, BBoxTracker.Tracker] = OrderedDict()
@@ -20,7 +21,7 @@ class BBoxTracker:
         self._distThreshold: float = 0.1
         self._missingFrames: int = 5
 
-    def addNewBox(self, bbox: BBox, metadata: object = None) -> int:
+    def addNewBox(self, bbox: BBox, metadata: dict = None) -> int:
         ''' Adds a new bounding box to be tracked
 
         Returns the ID of the newly tracked box '''
@@ -33,27 +34,40 @@ class BBoxTracker:
         ''' Remove a tracked object identified by key '''
         self._trackedObjs.pop(key, None)
 
-    def updateMetadata(self, key: int, metadata: object = None):
-        ''' Updates metadata for a tracked object, identified by key '''
-        if key in self._trackedObjs:
-            self._trackedObjs[key].metadata = metadata
+    def updateBox(self, key: int, bbox: BBox = None, metadata: dict = None):
+        ''' Updates a tracked object with a new bbox or metadata '''
+        obj = self._trackedObjs.get(key, None)
+        if obj:
+            if bbox is not None:
+                obj.bbox = bbox
+            if metadata is not None:
+                obj.metadata = metadata
 
     def clear(self):
         ''' Clears all tracked items '''
         self._trackedObjs.clear()
 
-    def update(self, detections: list[BBox], metadata: list[object] = None) \
+    def update(self, detections: list[BBox], metadata: list[dict] = None,
+               metadataComp: Callable[[dict, dict], float] = None) \
             -> tuple[dict[int, Tracker], dict[int, Tracker], dict[int, Tracker]]:
-        ''' Update tracker with a new set of BBoxes
+        ''' Updates tracker with new set of bboxes
 
-        Returns (allTrackedItems, newItems, lostItems) dictionaries '''
+        Attempts to match tracked boxes with new boxes
+
+        Parameters:
+        detections (list[BBox]) list of detected bounding boxes
+        metadata (list[dict], optional) list of metadata about bboxes, index-matched to detections
+        metadataComp (Callable[[dict, dict], float], optional) function that returns confidence, 0.0-1.0, that
+                     two metadata dictionaries describe the same object. May be called while matching boxes.
+        Returns:
+        (allTrackedItems, newItems, lostItems) dictionaries '''
 
         trackedRes = {}
         lostRes = {}
         newRes = {}
 
         trackedKeys = set(self._trackedObjs.keys())
-        matchedKeys = self._matchDetections(detections)
+        matchedKeys = self._matchDetections(detections, metadata=metadata, metadataComp=metadataComp)
 
         for idx, (key, bbox) in enumerate(zip(matchedKeys, detections)):
             if key is None:
@@ -74,10 +88,15 @@ class BBoxTracker:
 
         return trackedRes, newRes, lostRes
 
-    def _matchDetections(self, detections: list[BBox]) -> list[int]:
+    def _matchDetections(self, detections: list[BBox], metadata: list[dict] = None,
+                         metadataComp: Callable[[dict, dict], float] = None) -> list[int]:
         ''' Match passed in bounding boxes with nearest tracked box
 
         Returns a list keys with indexes matching the passed in detections list '''
+
+        # If metadata wasn't passed in then no use using the comparison function
+        if metadata is None or len(metadata) < len(detections):
+            metadataComp = None
 
         # Gather currently tracked bboxes
         trackedBoxes = [tracker.bbox for tracker in self._trackedObjs.values()]
@@ -105,6 +124,15 @@ class BBoxTracker:
                 continue
 
             objId = trackedIds[row]
+
+            if metadataComp:
+                leftMeta = self._trackedObjs[objId].metadata
+                rightMeta = metadata[col]
+                metaConf = metadataComp(leftMeta, rightMeta)
+                # TODO: Use this
+                if metaConf < 1:
+                    print("Meta Mismatch!")
+
             matchedIds[col] = objId
 
             usedRows.add(row)

@@ -43,6 +43,10 @@ class BBoxTracker:
             if metadata is not None:
                 obj.metadata = metadata
 
+    def getTrackedObjects(self) -> dict[int, Tracker]:
+        ''' Returns a dictionary of the objects being tracked '''
+        return self._trackedObjs.copy()
+
     def clear(self):
         ''' Clears all tracked items '''
         self._trackedObjs.clear()

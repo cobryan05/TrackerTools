@@ -82,6 +82,7 @@ class BBoxTracker:
                 newRes[newKey] = copy.copy(self._trackedObjs[newKey])
             else:
                 # This object was already tracked
+                self.updateBox(key, bbox=bbox)
                 trackedRes[key] = copy.copy(self._trackedObjs[key])
                 trackedKeys.remove(key)
 

@@ -51,6 +51,7 @@ class YoloInference:
         if yoloImg.ndimension() == 3:
             yoloImg = yoloImg.unsqueeze(0)
         _, _, yoloImgH, yoloImgW = yoloImg.shape
+        imgY, imgX, _ = img.shape
 
         iou_thres = 0.45  # NMS IOU threshold
         classes = None
@@ -64,7 +65,7 @@ class YoloInference:
             # Rescale box coords to img size
             det[:, :4] = scale_coords(yoloImg.shape[2:], det[:, :4], img.shape).round()
             for x1, y1, x2, y2, conf, objclass in reversed(det):
-                bbox = BBox.fromX1Y1X2Y2(x1, y1, x2, y2, yoloImgW, yoloImgH)
+                bbox = BBox.fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY)
                 objclass = int(objclass)
                 label = self._labels[objclass] if objclass < len(self._labels) else ""
                 results.append((bbox, float(conf), objclass, label))

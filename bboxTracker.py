@@ -3,6 +3,7 @@ import copy
 from collections import OrderedDict
 from collections.abc import Callable
 from scipy.spatial import distance
+import numpy as np
 
 from . bbox import BBox
 
@@ -117,12 +118,29 @@ class BBoxTracker:
         if len(trackedBoxes) == 0 or len(detections) == 0:
             return matchedIds
 
-        trackedCoords = [bbox.bbox for bbox in trackedBoxes]
-        detectedCoords = [bbox.bbox for bbox in detections]
+        trackedCoords = [bbox.bbox[:2] for bbox in trackedBoxes]
+        detectedCoords = [bbox.bbox[:2] for bbox in detections]
 
         # Adapted from
         # https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
         dist = distance.cdist(trackedCoords, detectedCoords)
+        dist[dist > self._distThreshold] = 1  # Set anything further apart than threshold to 1
+
+        # If there is a metadata comparison function then apply it before continuing
+        if metadataComp:
+            # Only consider pairs that are within the tracking distance threshold
+            nearbyIndexes = np.where(dist < self._distThreshold)
+            nearbyPairs = list(zip(nearbyIndexes[0], nearbyIndexes[1]))
+
+            for trackedIdx, detectedIdx in nearbyPairs:
+                trackedKey = trackedIds[trackedIdx]
+                leftMeta = self._trackedObjs[trackedKey].metadata
+                rightMeta = metadata[detectedIdx]
+                sameConf = metadataComp(leftMeta, rightMeta)
+
+                # Adjust distance based on confidence
+                multiplier = (1.5 - sameConf)
+                dist[trackedIdx][detectedIdx] *= pow(multiplier, 2)
 
         rows = dist.min(axis=1).argsort()
         cols = dist.argmin(axis=1)[rows]
@@ -133,15 +151,6 @@ class BBoxTracker:
                 continue
 
             objId = trackedIds[row]
-
-            if metadataComp:
-                leftMeta = self._trackedObjs[objId].metadata
-                rightMeta = metadata[col]
-                metaConf = metadataComp(leftMeta, rightMeta)
-                # TODO: Use this
-                if metaConf < 1:
-                    print("Meta Mismatch!")
-
             matchedIds[col] = objId
 
             usedRows.add(row)

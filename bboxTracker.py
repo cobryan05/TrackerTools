@@ -64,7 +64,8 @@ class BBoxTracker:
         metadataComp (Callable[[dict, dict], float], optional) function that returns confidence, 0.0-1.0, that
                      two metadata dictionaries describe the same object. May be called while matching boxes.
         Returns:
-        (allTrackedItems, newItems, lostItems) dictionaries '''
+        (allTrackedItems (dict), newItems (dict), lostItems (dict), detectedKeys (list)) where
+         'items' are dictionaries with tracked items, and matchedKeys contains the keys index-matched to the input detections'''
 
         trackedRes = {}
         lostRes = {}
@@ -72,6 +73,7 @@ class BBoxTracker:
 
         trackedKeys = set(self._trackedObjs.keys())
         matchedKeys = self._matchDetections(detections, metadata=metadata, metadataComp=metadataComp)
+        detectedKeys = []
 
         for idx, (key, bbox) in enumerate(zip(matchedKeys, detections)):
             if key is None:
@@ -80,18 +82,20 @@ class BBoxTracker:
                 newKey = self.addNewBox(bbox, metadata=data)
                 trackedRes[newKey] = copy.copy(self._trackedObjs[newKey])
                 newRes[newKey] = copy.copy(self._trackedObjs[newKey])
+                detectedKeys.append(newKey)
             else:
                 # This object was already tracked
                 self.updateBox(key, bbox=bbox)
                 trackedRes[key] = copy.copy(self._trackedObjs[key])
                 trackedKeys.remove(key)
+                detectedKeys.append(key)
 
         # Any keys remaining in trackedKeys are lost
         for key in trackedKeys:
             lostRes[key] = copy.copy(self._trackedObjs[key])
             trackedRes[key] = copy.copy(self._trackedObjs[key])
 
-        return trackedRes, newRes, lostRes
+        return trackedRes, newRes, lostRes, detectedKeys
 
     def _matchDetections(self, detections: list[BBox], metadata: list[dict] = None,
                          metadataComp: Callable[[dict, dict], float] = None) -> list[int]:

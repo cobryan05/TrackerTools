@@ -16,10 +16,14 @@ class BBoxTracker:
             self.key: int = key
             self.metadata: dict = metadata
 
-    def __init__(self):
+    def __init__(self, distThresh: float = 0.1):
+        ''' Constructor for BBox Tracker
+
+        Parameters:
+        distThresh (float): maximum distance for two bboxes to be compared as the same '''
         self._trackedObjs: OrderedDict[int, BBoxTracker.Tracker] = OrderedDict()
         self._lastKey: int = 0
-        self._distThreshold: float = 0.1
+        self._distThreshold: float = distThresh
         self._missingFrames: int = 5
 
     def addNewBox(self, bbox: BBox, metadata: dict = None) -> int:

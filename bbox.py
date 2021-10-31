@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import numpy as np
 
 
@@ -25,10 +26,15 @@ class BBox:
     def copy(self):
         return BBox(self.bbox)
 
+    def dist(self, other):
+        pt1 = self.bbox[:2]
+        pt2 = other.bbox[:2]
+        return math.dist(pt1, pt2)
+
     def similar(self, other, epsilon=EPSILON):
         if self.bbox is other.bbox:
             return True
-        return sum(abs(self.bbox - other.bbox)) < epsilon
+        return self.dist(other) < epsilon
 
     @staticmethod
     def fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY) -> BBox:

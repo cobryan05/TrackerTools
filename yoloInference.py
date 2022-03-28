@@ -67,7 +67,7 @@ class YoloInference:
             for x1, y1, x2, y2, conf, objclass in reversed(det):
                 bbox = BBox.fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY)
                 objclass = int(objclass)
-                label = self._labels[objclass] if objclass < len(self._labels) else ""
+                label = self._labels[objclass] if self._labels is not None and objclass < len(self._labels) else ""
                 results.append((bbox, float(conf), objclass, label))
         return results
 

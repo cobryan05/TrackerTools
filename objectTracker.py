@@ -5,161 +5,84 @@ from collections import OrderedDict
 import numpy as np
 
 from . bbox import BBox
+from . bboxTracker import BBoxTracker
+
+METAKEY_TRACKER = "objTracker_TRACKER"
 
 
 class ObjectTracker:
     class Tracker:
-        def __init__(self):
-            self.tracker: cv2.Tracker = None
-            self.lastSeen: BBox = None
-            self.lostCount = 0
-            self.metadata = None
+        def __init__(self, trackerType: str, image: np.ndarray, bbox: BBox):
+            self.lastSeen: BBox = bbox
+            self.tracker: cv2.Tracker = ObjectTracker.createTrackerByType(trackerType)
+
+            imgY, imgX = image.shape[:2]
+            self.tracker.init(image, bbox.asX1Y1WH(imgX, imgY))
 
         def update(self, img):
-            if self.tracker:
-                return self.tracker.update(img)
-            else:
-                return None
-
-    def __init__(self, trackerType: str = "KCF"):
-        self._trackers: OrderedDict[int, ObjectTracker.Tracker] = OrderedDict()
-        self._trackerType = trackerType
-        self._lastTrackerKey = 0
-        self._image: np.ndarray = None
-        self._distThreshold = 0.1
-        self._missingFrames = 5
-
-    def addObject(self, bbox: BBox, metadata=None):
-        ''' Adds a bounding box to track, in rxywh format '''
-        if self._image is None:
-            raise Exception("Set image first")
-
-        newTracker = ObjectTracker.Tracker()
-        newTracker.tracker = ObjectTracker.createTrackerByType(self._trackerType)
-        newTracker.lastSeen = bbox.copy()
-        imgY, imgX = self._image.shape[:2]
-        newTracker.tracker.init(self._image, bbox.asX1Y1WH(imgX, imgY))
-        newTracker.metadata = metadata
-        self._lastTrackerKey += 1
-        self._trackers[self._lastTrackerKey] = newTracker
-        print(f"addObject @ {self._lastTrackerKey} {bbox}")
-        return self._lastTrackerKey
-
-    def clear(self):
-        self._trackers.clear()
-
-    def setImage(self, image: np.ndarray):
-        self._image = image.copy()
-
-    def update(self) -> dict[int, BBox]:
-        res = {}
-        for key, tracker in self._trackers.items():
-            result = tracker.update(self._image)
-            success, bbox_coords = result
+            success, coords = self.tracker.update(img)
             if success:
-                imgY, imgX = self._image.shape[:2]
-                bbox = BBox.fromX1Y1WH(*bbox_coords, imgX, imgY)
-                tracker.lastSeen = bbox
-            else:
-                bbox = None
-            res[key] = bbox
-        return res
+                imgY, imgX = img.shape[:2]
+                self.lastSeen = BBox.fromX1Y1WH(*coords, imgX, imgY)
+            return success, self.lastSeen
 
-    def updateDetections(self, detections: list[BBox], detectionMetadata):
-        ''' Update the tracker with YOLO detections '''
-        # Try to match detections with currently tracked objects
-        updatedTrackedObjs, matchedKeys, lostObjIds = self.matchDetections(detections, detectionMetadata)
+    def __init__(self, trackerType: str = "KCF", distThresh=0.1):
+        self._bboxTracker: BBoxTracker = BBoxTracker(distThresh=distThresh)
+        self._trackerType = trackerType
 
-        # Update any already-tracked objects
-        for key, tracker in updatedTrackedObjs.items():
-            self._trackers[key].tracker = tracker
+    def getTrackedObjects(self) -> dict[int, BBoxTracker.Tracker]:
+        ''' Returns a dictionary of the objects being tracked '''
+        return self._bboxTracker.getTrackedObjects()
 
-        # Track any new objects
-        for idx, key in enumerate(matchedKeys):
-            if key is None:
-                self.addObject(detections[idx], detectionMetadata[idx])
-            else:
-                pass  # Already tracked object
+    def updateBox(self, key: int, bbox: BBox = None, metadata: dict = None):
+        ''' Updates a tracked object with a new bbox or metadata '''
+        return self._bboxTracker.updateBox(key=key, bbox=bbox, metadata=metadata)
 
-        # Handle lost objects:
-        for id in lostObjIds:
-            print(f"Lost id: {id}")
-            self._trackers[id].lostCount += 1
-        pass
+    def removeBox(self, key: int):
+        ''' Remove a tracked object identified by key '''
+        self._bboxTracker.removeBox(key)
 
-    # TODO: Inconsistent use of detectedClasses/metadata
-    def matchDetections(self, detectedObjects, detectedClasses):
-        # Try to match up new detections with tracked objects
+    def update(self, image: np.ndarray, detections: list[BBox] = None, **bboxTrackerKwargs) -> tuple[dict[int, Tracker], set[int], set[int], list[int]]:
+        ''' Updates the object trackers with a new image, and optionally detections
 
-        # First gather all of the last-seen positions for tracked objects
-        trackedObjectIds = []
-        trackedObjectCoords = []
-        for key, value in self._trackers.items():
-            trackedObjectIds.append(key)
-            trackedObjectCoords.append(value.lastSeen)
+        Parameters:
+        image (np.ndarray) - image to apply tracking to
+        detections (list, optional) - List of detected BBox to pass into tracker
+        bboxTrackerKwargs - extra kwargs to pass to BBoxTracker, such as metadata and metadataComp
 
-        # Try to match detections with currently tracked objects
-        updatedTrackedObjs, matchedKeys, lostObjIds = self._matchDetections(
-            np.array(detectedObjects),
-            np.array(trackedObjectCoords),
-            trackedObjectIds)
+        Returns:
+        ( trackedItems (dict[int,Tracker]), newKeys (set[int]), lostKeys (set[int]), matchedKeys (list[int]) )
+            where trackedItems is a dictionary of all tracked items, newKeys is the set of keys that are new this
+            updates, lostKeys is the set of keys that were lost this update, and matchedKeys is an list of keys
+            index-matched with the passed in detections list
+        '''
+        trackedObjs: dict[int, ObjectTracker.Tracker] = {}
+        lostKeys: set[int] = set()
+        newKeys: set[int] = set()
+        matchedKeys: list[int] = []
 
-        return (updatedTrackedObjs, matchedKeys, lostObjIds)
+        if detections is None:
+            # Run image tracking only
+            trackedObjs = self._bboxTracker.getTrackedObjects()
+            for key, obj in trackedObjs.items():
+                tracker: ObjectTracker.Tracker = obj.metadata[METAKEY_TRACKER]
+                success, bbox = tracker.update(image)
+                if success:
+                    self._bboxTracker.updateBox(key, bbox=bbox)
+                    matchedKeys.append(key)
+                else:
+                    lostKeys.add(key)
+        else:
+            trackedObjs, newKeys, lostKeys, matchedKeys = self._bboxTracker.update(detections, **bboxTrackerKwargs)
 
-    def _matchDetections(self, detectedObjects: list[BBox], trackedObjects: list[BBox], trackedIds: list[int]):
-        ''' Returns updatedTrackedObjs, matchedKeys, lostIds
-            matchedKeys indexes correspond to detectedObject indexes '''
-        updatedTrackedObjs = {}
-        matchedIds = [None]*len(detectedObjects)
+            for key, obj in trackedObjs.items():
+                if key not in lostKeys:
+                    # Create/Update tracker with detection
+                    tracker = ObjectTracker.Tracker(trackerType=self._trackerType, image=image, bbox=obj.bbox)
+                    obj.metadata[METAKEY_TRACKER] = tracker
+                    self._bboxTracker.updateBox(key, metadata=obj.metadata)
 
-        # If there are no currently tracked objects then all objects are new
-        if len(trackedObjects) == 0:
-            return (updatedTrackedObjs, matchedIds, [])
-
-        # No detections, then all objects are lost
-        if len(detectedObjects) == 0:
-            return (updatedTrackedObjs, matchedIds, trackedIds)
-
-        lostObjectIds = []
-
-        detectedCoords = [obj.bbox for obj in detectedObjects]
-        trackedCoords = [obj.bbox for obj in trackedObjects]
-        # Adapted from
-        # https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/
-        dist = distance.cdist(trackedCoords, detectedCoords)
-
-        rows = dist.min(axis=1).argsort()
-        cols = dist.argmin(axis=1)[rows]
-        usedRows = set()
-        usedCols = set()
-        imgY, imgX = self._image.shape[:2]
-        for (row, col) in zip(rows, cols):
-            if row in usedRows or col in usedCols:
-                continue
-
-            objId = trackedIds[row]
-            matchedIds[col] = objId
-            bbox = detectedObjects[col]
-            # Create a new tracker for this detection, return it with the same id
-            newTracker = ObjectTracker.createTrackerByType(self._trackerType)
-            newTracker.init(self._image, bbox.asX1Y1WH(imgX, imgY))
-            updatedTrackedObjs[objId] = newTracker
-
-            usedRows.add(row)
-            usedCols.add(col)
-
-        # compute both the row and column index we have NOT yet
-        # examined
-        unusedRows = set(range(0, dist.shape[0])).difference(usedRows)
-        unusedCols = set(range(0, dist.shape[1])).difference(usedCols)
-
-        # If we were tracking more than we detected then we lost objects
-        if dist.shape[0] >= dist.shape[1]:
-            for row in unusedRows:
-                objId = trackedIds[row]
-                lostObjectIds.append(objId)
-
-        return (updatedTrackedObjs, matchedIds, lostObjectIds)
+        return (trackedObjs, newKeys, lostKeys, matchedKeys)
 
     @staticmethod
     def createTrackerByType(trackerType: str) -> cv2.Tracker:

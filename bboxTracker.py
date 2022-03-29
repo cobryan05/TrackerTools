@@ -84,7 +84,7 @@ class BBoxTracker:
         for idx, (key, bbox) in enumerate(zip(matchedKeys, detections)):
             if key is None:
                 # This is a newly tracked object
-                data = metadata[idx] if metadata and idx < len(metadata) else None
+                data = metadata[idx] if metadata and idx < len(metadata) else {}
                 newKey = self.addNewBox(bbox, metadata=data)
                 trackedRes[newKey] = copy.copy(self._trackedObjs[newKey])
                 newKeySet.add(newKey)

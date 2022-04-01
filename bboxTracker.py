@@ -11,7 +11,7 @@ from . bbox import BBox
 class BBoxTracker:
 
     class Tracker:
-        def __init__(self, bbox: BBox = None, key: int = None, metadata: dict = None):
+        def __init__(self, bbox: BBox = None, key: int = None, metadata: dict = {}):
             self.bbox: BBox = bbox
             self.key: int = key
             self.metadata: dict = metadata
@@ -39,14 +39,17 @@ class BBoxTracker:
         ''' Remove a tracked object identified by key '''
         self._trackedObjs.pop(key, None)
 
-    def updateBox(self, key: int, bbox: BBox = None, metadata: dict = None):
+    def updateBox(self, key: int, bbox: BBox = None, metadata: dict = None, mergeMetadata: bool = False):
         ''' Updates a tracked object with a new bbox or metadata '''
         obj = self._trackedObjs.get(key, None)
         if obj:
             if bbox is not None:
                 obj.bbox = copy.copy(bbox)
             if metadata is not None:
-                obj.metadata = metadata
+                if mergeMetadata:
+                    obj.metadata = {**metadata, **obj.metadata}
+                else:
+                    obj.metadata = metadata.copy()
 
     def getTrackedObjects(self) -> dict[int, Tracker]:
         ''' Returns a dictionary of the objects being tracked '''
@@ -57,8 +60,7 @@ class BBoxTracker:
         self._trackedObjs.clear()
 
     def update(self, detections: list[BBox], metadata: list[dict] = None,
-               metadataComp: Callable[[dict, dict], float] = None) \
-            -> tuple[dict[int, Tracker], set[int], set[int], list[int]]:
+               metadataComp: Callable[[dict, dict], float] = None, mergeMetadata=False) -> tuple[dict[int, Tracker], set[int], set[int], list[int]]:
         ''' Updates tracker with new set of bboxes
 
         Attempts to match tracked boxes with new boxes
@@ -68,6 +70,7 @@ class BBoxTracker:
         metadata (list[dict], optional) list of metadata about bboxes, index-matched to detections
         metadataComp (Callable[[dict, dict], float], optional) function that returns confidence, 0.0-1.0, that
                      two metadata dictionaries describe the same object. May be called while matching boxes.
+        mergeMetadata (bool, optional) if True then the metadata dictionary will be merged with the current one, otherwise replaces it
         Returns:
         (allTrackedItems (dict), newItems (set), lostItems (set), detectedKeys (list)) where
          'allTrackedItems' is a dictionary with the tracked items, and newItems and lostItems are sets
@@ -82,16 +85,16 @@ class BBoxTracker:
         detectedKeys = []
 
         for idx, (key, bbox) in enumerate(zip(matchedKeys, detections)):
+            data = metadata[idx] if metadata and idx < len(metadata) else None
             if key is None:
                 # This is a newly tracked object
-                data = metadata[idx] if metadata and idx < len(metadata) else {}
                 newKey = self.addNewBox(bbox, metadata=data)
                 trackedRes[newKey] = copy.copy(self._trackedObjs[newKey])
                 newKeySet.add(newKey)
                 detectedKeys.append(newKey)
             else:
                 # This object was already tracked
-                self.updateBox(key, bbox=bbox)
+                self.updateBox(key, bbox=bbox, metadata=data, mergeMetadata=mergeMetadata)
                 trackedRes[key] = copy.copy(self._trackedObjs[key])
                 trackedKeys.remove(key)
                 detectedKeys.append(key)

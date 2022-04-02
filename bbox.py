@@ -4,7 +4,8 @@ import numpy as np
 
 
 class BBox:
-    EPSILON = 0.01
+    EPSILON_DIST = 0.01
+    EPSILON_SIZE = .9
 
     def __init__(self, bbox):
         # Ensure positive w,h
@@ -31,10 +32,17 @@ class BBox:
         pt2 = other.bbox[:2]
         return math.dist(pt1, pt2)
 
-    def similar(self, other, epsilon=EPSILON):
+    def similar(self, other, distEpsilon=EPSILON_DIST, sizeEpsilon=EPSILON_SIZE):
         if self.bbox is other.bbox:
             return True
-        return self.dist(other) < epsilon
+        areaRatio = min(self.area, other.area) / max(self.area, other.area)
+        if areaRatio < sizeEpsilon:
+            return False
+        return self.dist(other) < distEpsilon
+
+    @property
+    def area(self) -> float:
+        return self.bbox[2] * self.bbox[3]
 
     @staticmethod
     def fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY) -> BBox:

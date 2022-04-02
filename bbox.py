@@ -35,8 +35,9 @@ class BBox:
     def similar(self, other, distEpsilon=EPSILON_DIST, sizeEpsilon=EPSILON_SIZE):
         if self.bbox is other.bbox:
             return True
+        absAreaDiff = abs(self.area - other.area)
         areaRatio = min(self.area, other.area) / max(self.area, other.area)
-        if areaRatio < sizeEpsilon:
+        if absAreaDiff > distEpsilon and areaRatio > sizeEpsilon:
             return False
         return self.dist(other) < distEpsilon
 

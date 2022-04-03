@@ -107,7 +107,7 @@ class BBoxTracker:
         return trackedRes, newKeySet, lostKeySet, detectedKeys
 
     def _matchDetections(self, detections: list[BBox], metadata: list[dict] = None,
-                         metadataComp: Callable[[dict, dict], float] = None) -> list[int]:
+                         metadataComp: Callable[[tuple[BBox, dict], tuple[BBox, dict]], float] = None) -> list[int]:
         ''' Match passed in bounding boxes with nearest tracked box
 
         Returns a list keys with indexes matching the passed in detections list '''
@@ -142,9 +142,12 @@ class BBoxTracker:
 
             for trackedIdx, detectedIdx in nearbyPairs:
                 trackedKey = trackedIds[trackedIdx]
-                leftMeta = self._trackedObjs[trackedKey].metadata
+                trackedObj = self._trackedObjs[trackedKey]
+                leftMeta = trackedObj.metadata
+                leftBbox = trackedObj.bbox
                 rightMeta = metadata[detectedIdx]
-                sameConf = metadataComp(leftMeta, rightMeta)
+                rightBbox = detections[detectedIdx]
+                sameConf = metadataComp((leftBbox, leftMeta), (rightBbox, rightMeta))
 
                 # Adjust distance based on confidence
                 multiplier = (1.5 - sameConf)

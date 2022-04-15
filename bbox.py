@@ -78,4 +78,4 @@ class BBox:
         return (cX, cY, rW, rH)
 
     def asRX1Y1WH(self) -> tuple[float, float, float, float]:
-        return self.bbox
+        return tuple(self.bbox)

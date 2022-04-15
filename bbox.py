@@ -78,6 +78,11 @@ class BBox:
         ''' creates a new bounding box from relative top-left coords, width and height '''
         return BBox((x1, y1, w, h))
 
+    @staticmethod
+    def fromRX1Y1X2Y2(x1, y1, x2, y2) -> BBox:
+        ''' createa a new bounding box from relative 4 coordinates '''
+        return BBox((x1, y1, x2-x1, y2-y1))
+
     def asX1Y1X2Y2(self, imgW, imgH) -> tuple[int, int, int, int]:
         ''' returns bbox coords as 4 corners in image coordinates '''
         x1, y1, w, h = self.asX1Y1WH(imgW, imgH)
@@ -100,3 +105,8 @@ class BBox:
     def asRX1Y1WH(self) -> tuple[float, float, float, float]:
         ''' returns bbox coords as relative top-left coords, width and height '''
         return tuple(self.bbox)
+
+    def asRX1Y1X2Y2(self) -> tuple[float, float, float, float]:
+        ''' returns bbox coords as relative 4 coordinates '''
+        x1, y1, w, h = self.asRX1Y1WH()
+        return((x1, y1, x1+w, y1+h))

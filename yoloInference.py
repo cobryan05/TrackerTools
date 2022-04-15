@@ -5,8 +5,6 @@ import numpy as np
 import os
 
 # requires 'yolov5' to be in in path, https://github.com/ultralytics/yolov5.git
-from models.experimental import attempt_load
-from utils.general import non_max_suppression, scale_coords
 
 from .bbox import BBox
 
@@ -21,6 +19,7 @@ class YoloInference:
         labels (list[str]): class labels, can be None
         device (str): device type to pass to torch (cpu or cuda)
         '''
+        from models.experimental import attempt_load
         self._device = torch.device(device)
         self._imgSize = imgSize
         self._labels = labels
@@ -41,6 +40,8 @@ class YoloInference:
 
         Returns:
         list[( bbox (BBox), conf (float), class (int), label (str) )] '''
+
+        from utils.general import non_max_suppression, scale_coords
 
         yoloImg, ratio, (xPad, yPad) = letterbox(img, self._imgSize)
 

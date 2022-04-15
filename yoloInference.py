@@ -12,15 +12,16 @@ from .bbox import BBox
 
 
 class YoloInference:
-    def __init__(self, weights: str, imgSize: int = 640, labels: list[str] = None):
+    def __init__(self, weights: str, imgSize: int = 640, labels: list[str] = None, device: str = 'cpu'):
         ''' Constructor for YoloInference
 
         Parameters:
         weights (str): Path to weights file
         imgSize (int): Resolution model was trained on
         labels (list[str]): class labels, can be None
+        device (str): device type to pass to torch (cpu or cuda)
         '''
-        self._device = torch.device('cpu')
+        self._device = torch.device(device)
         self._imgSize = imgSize
         self._labels = labels
         self._yolo = attempt_load(weights, map_location=self._device)
@@ -65,7 +66,7 @@ class YoloInference:
             # Rescale box coords to img size
             det[:, :4] = scale_coords(yoloImg.shape[2:], det[:, :4], img.shape).round()
             for x1, y1, x2, y2, conf, objclass in reversed(det):
-                bbox = BBox.fromX1Y1X2Y2(x1, y1, x2, y2, imgX, imgY)
+                bbox = BBox.fromX1Y1X2Y2(x1.cpu(), y1.cpu(), x2.cpu(), y2.cpu(), imgX, imgY)
                 objclass = int(objclass)
                 label = self._labels[objclass] if self._labels is not None and objclass < len(self._labels) else ""
                 results.append((bbox, float(conf), objclass, label))

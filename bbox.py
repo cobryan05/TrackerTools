@@ -5,7 +5,7 @@ import numpy as np
 
 class BBox:
     EPSILON_DIST = 0.01
-    EPSILON_SIZE = .9
+    EPSILON_SIZE = 0.10
 
     def __init__(self, coords: tuple(float, float, float, float)):
         '''

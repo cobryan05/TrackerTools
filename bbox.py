@@ -20,7 +20,7 @@ class BBox:
         if h < 0:
             y1 += h
             h = -h
-        self.bbox = np.array((x1, y1, w, h), dtype=np.float)  # Relative, x1y1, w,h
+        self.bbox = np.array((x1, y1, w, h), dtype=float)  # Relative, x1y1, w,h
 
     def __eq__(self, other):
         return self.similar(other)

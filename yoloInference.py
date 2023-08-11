@@ -2,9 +2,8 @@ import sys
 import torch
 import cv2
 import numpy as np
+import yolov7
 import os
-
-# requires 'yolov5' to be in in path, https://github.com/ultralytics/yolov5.git
 
 from .bbox import BBox
 
@@ -19,7 +18,7 @@ class YoloInference:
         labels (list[str]): class labels, can be None
         device (str): device type to pass to torch (cpu or cuda)
         '''
-        from models.experimental import attempt_load
+        from yolov7.models.experimental import attempt_load
         self._device = torch.device(device)
         self._imgSize = imgSize
         self._labels = labels
@@ -41,7 +40,7 @@ class YoloInference:
         Returns:
         list[( bbox (BBox), conf (float), class (int), label (str) )] '''
 
-        from utils.general import non_max_suppression, scale_coords
+        from yolov7.utils.general import non_max_suppression, scale_coords
 
         yoloImg, ratio, (xPad, yPad) = letterbox(img, self._imgSize)
 
@@ -60,7 +59,7 @@ class YoloInference:
         agnostic_nms = False
         max_det = 5000
         preds = self._yolo(yoloImg)[0]
-        nms_preds = non_max_suppression(preds, conf_thresh, iou_thres, classes, agnostic_nms, max_det=max_det)
+        nms_preds = non_max_suppression(preds, conf_thresh, iou_thres, classes, agnostic_nms)
 
         results = []
         for det in nms_preds:

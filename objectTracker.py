@@ -26,7 +26,7 @@ class ObjectTracker:
                 self.lastSeen = BBox.fromX1Y1WH(*coords, imgX, imgY)
             return success, self.lastSeen
 
-    def __init__(self, trackerType: str = "KCF", distThresh=0.1):
+    def __init__(self, trackerType: str = "MIL", distThresh=0.1):
         self._bboxTracker: BBoxTracker = BBoxTracker(distThresh=distThresh)
         self._trackerType = trackerType
 
@@ -87,22 +87,14 @@ class ObjectTracker:
     @staticmethod
     def createTrackerByType(trackerType: str) -> cv2.Tracker:
         trackerType = trackerType.upper()
-        if trackerType == 'BOOSTING':
-            tracker = cv2.TrackerBoosting_create()
-        elif trackerType == 'MIL':
-            tracker = cv2.TrackerMIL_create()
-        elif trackerType == 'KCF':
-            tracker = cv2.TrackerKCF_create()
-        elif trackerType == 'TLD':
-            tracker = cv2.TrackerTLD_create()
-        elif trackerType == 'MEDIANFLOW':
-            tracker = cv2.TrackerMedianFlow_create()
+        if trackerType == 'DASIAMRPN':
+            tracker = cv2.TrackerDaSiamRPN_create()
         elif trackerType == 'GOTURN':
             tracker = cv2.TrackerGOTURN_create()
-        elif trackerType == 'MOSSE':
-            tracker = cv2.TrackerMOSSE_create()
-        elif trackerType == "CSRT":
-            tracker = cv2.TrackerCSRT_create()
+        elif trackerType == 'MIL':
+            tracker = cv2.TrackerMIL_create()
+        elif trackerType == "NANO":
+            tracker = cv2.TrackerNano_create()
         else:
             tracker = None
         return tracker

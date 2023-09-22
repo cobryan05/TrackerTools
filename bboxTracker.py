@@ -32,7 +32,6 @@ class BBoxTracker:
         Returns the ID of the newly tracked box '''
         self._lastKey += 1
         self._trackedObjs[self._lastKey] = BBoxTracker.Tracker(bbox=bbox, key=self._lastKey, metadata=metadata)
-        print(f"Tracking new object: {self._lastKey} - {bbox}")
         return self._lastKey
 
     def removeBox(self, key: int):

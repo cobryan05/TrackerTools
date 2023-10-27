@@ -1,11 +1,11 @@
 import cv2
-from . utils import *
+from .utils import *
 from scipy.spatial import distance
 from collections import OrderedDict
 import numpy as np
 
-from . bbox import BBox
-from . bboxTracker import BBoxTracker
+from .bbox import BBox
+from .bboxTracker import BBoxTracker
 
 METAKEY_TRACKER = "objTracker_TRACKER"
 
@@ -31,19 +31,21 @@ class ObjectTracker:
         self._trackerType = trackerType
 
     def getTrackedObjects(self) -> dict[int, BBoxTracker.Tracker]:
-        ''' Returns a dictionary of the objects being tracked '''
+        """Returns a dictionary of the objects being tracked"""
         return self._bboxTracker.getTrackedObjects()
 
     def updateBox(self, key: int, bbox: BBox = None, metadata: dict = None):
-        ''' Updates a tracked object with a new bbox or metadata '''
+        """Updates a tracked object with a new bbox or metadata"""
         return self._bboxTracker.updateBox(key=key, bbox=bbox, metadata=metadata)
 
     def removeBox(self, key: int):
-        ''' Remove a tracked object identified by key '''
+        """Remove a tracked object identified by key"""
         self._bboxTracker.removeBox(key)
 
-    def update(self, image: np.ndarray, detections: list[BBox] = None, **bboxTrackerKwargs) -> tuple[dict[int, Tracker], set[int], set[int], list[int]]:
-        ''' Updates the object trackers with a new image, and optionally detections
+    def update(
+        self, image: np.ndarray, detections: list[BBox] = None, **bboxTrackerKwargs
+    ) -> tuple[dict[int, Tracker], set[int], set[int], list[int]]:
+        """Updates the object trackers with a new image, and optionally detections
 
         Parameters:
         image (np.ndarray) - image to apply tracking to
@@ -55,7 +57,7 @@ class ObjectTracker:
             where trackedItems is a dictionary of all tracked items, newKeys is the set of keys that are new this
             updates, lostKeys is the set of keys that were lost this update, and matchedKeys is an list of keys
             index-matched with the passed in detections list
-        '''
+        """
         trackedObjs: dict[int, ObjectTracker.Tracker] = {}
         lostKeys: set[int] = set()
         newKeys: set[int] = set()
@@ -73,12 +75,16 @@ class ObjectTracker:
                 else:
                     lostKeys.add(key)
         else:
-            trackedObjs, newKeys, lostKeys, matchedKeys = self._bboxTracker.update(detections, **bboxTrackerKwargs)
+            trackedObjs, newKeys, lostKeys, matchedKeys = self._bboxTracker.update(
+                detections, **bboxTrackerKwargs
+            )
 
             for key, obj in trackedObjs.items():
                 if key not in lostKeys:
                     # Create/Update tracker with detection
-                    tracker = ObjectTracker.Tracker(trackerType=self._trackerType, image=image, bbox=obj.bbox)
+                    tracker = ObjectTracker.Tracker(
+                        trackerType=self._trackerType, image=image, bbox=obj.bbox
+                    )
                     obj.metadata[METAKEY_TRACKER] = tracker
                     self._bboxTracker.updateBox(key, metadata=obj.metadata)
 
@@ -87,11 +93,11 @@ class ObjectTracker:
     @staticmethod
     def createTrackerByType(trackerType: str) -> cv2.Tracker:
         trackerType = trackerType.upper()
-        if trackerType == 'DASIAMRPN':
+        if trackerType == "DASIAMRPN":
             tracker = cv2.TrackerDaSiamRPN_create()
-        elif trackerType == 'GOTURN':
+        elif trackerType == "GOTURN":
             tracker = cv2.TrackerGOTURN_create()
-        elif trackerType == 'MIL':
+        elif trackerType == "MIL":
             tracker = cv2.TrackerMIL_create()
         elif trackerType == "NANO":
             tracker = cv2.TrackerNano_create()

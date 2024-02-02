@@ -95,9 +95,6 @@ class BBox:
 
     def asX1Y1WH(self, imgW, imgH) -> tuple[int, int, int, int]:
         """returns bbox coords as top-left coords, width and height in image coordinates"""
-        # Subtract one from dimensions since 0-indexed
-        imgW -= 1
-        imgH -= 1
         x1 = round(self.bbox[0] * imgW)
         y1 = round(self.bbox[1] * imgH)
         w = round(self.bbox[2] * imgW)

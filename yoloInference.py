@@ -120,8 +120,8 @@ class YoloFuncs:
             bbox = BBox.fromRX1Y1X2Y2(*box.xyxyn[0].tolist())
             objclass = int(box.cls)
             model_label = model.names.get(objclass, None)
-            label = labels[objclass]
-            if model_label and label != model_label:
+            label = labels[objclass] if labels else None
+            if label and model_label and label != model_label:
                 pass  # Mismatch between model's label and passed in labels
             results.append((bbox, float(box.conf), objclass, label))
         return results
